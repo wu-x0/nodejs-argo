@@ -1,3 +1,13 @@
+# 把这个文件放到你 fork 的仓库里，路径：.github/workflows/build-docker-image.yml
+# （替换掉原来的同名文件）
+#
+# 使用前先在 fork 的 Settings → Secrets and variables → Actions 里添加两个 secrets：
+#   DOCKERHUB_USERNAME — 你的 Docker Hub 用户名
+#   DOCKERHUB_TOKEN    — 你的 Docker Hub Access Token（Account Settings → Personal access tokens，
+#                        勾选 Read & Write 权限）
+# 之后每次 push 到 main（改动了 Dockerfile / index.js / package.json），就会自动构建
+# 并推送到 docker.io/<你的用户名>/nodejs-argo:latest
+
 name: Build and Push Docker Image
 
 on:
@@ -16,18 +26,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to Docker Hub
         uses: docker/login-action@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -36,13 +44,14 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          # PR 只构建不推送，避免 fork 的 PR 拿不到 secrets 时失败
+          push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/cnwks:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/nodejs-argo:latest
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=HTTP Server
+            org.opencontainers.image.description=nodejs-argo tunnel service
             org.opencontainers.image.licenses=MIT
           cache-from: type=gha
           cache-to: type=gha,mode=max
